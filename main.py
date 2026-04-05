@@ -57,67 +57,52 @@ def get_top_signals():
 
 
 # =========================
-# MODULE 2: FETCH TARGET SIGNAL DATA (LABEL → VALUE)
+# MODULE 2: FETCH TARGET SIGNAL DATA (PATTERN-BASED PARSING)
 # =========================
 def get_my_signal():
     res = requests.get(MY_SIGNAL_URL, headers=HEADERS)
     soup = BeautifulSoup(res.text, "html.parser")
 
+    text = soup.get_text(" ", strip=True)
+
     try:
-        data = {
-            "rank": None,
-            "gain": None,
-            "dd": None,
-            "price": None
-        }
+        # Rank (número después de # o cerca de Rank)
+        rank_match = re.search(r'#(\d+)', text)
+        rank = int(rank_match.group(1)) if rank_match else None
 
-        elements = soup.find_all(string=True)
+        # Gain (primer % razonable del documento)
+        gain_matches = re.findall(r'(\d+\.\d+)%', text)
+        gain = None
+        for g in gain_matches:
+            val = float(g)
+            if 10 < val < 1000:  # filtro razonable
+                gain = val
+                break
 
-        for i, el in enumerate(elements):
-            text = el.strip()
+        # Drawdown (buscar % pequeño)
+        dd = None
+        for g in gain_matches:
+            val = float(g)
+            if 0 < val < 20:  # DD suele ser bajo
+                dd = val
+                break
 
-            if not text:
-                continue
+        # Price (primer $ razonable)
+        price_match = re.search(r'\$(\d+)', text)
+        price = float(price_match.group(1)) if price_match else None
 
-            # Rank
-            if text == "Rank" and data["rank"] is None:
-                if i + 1 < len(elements):
-                    next_text = elements[i + 1].strip()
-                    match = re.search(r'\d+', next_text)
-                    if match:
-                        data["rank"] = int(match.group())
-
-            # Gain
-            elif text == "Gain" and data["gain"] is None:
-                if i + 1 < len(elements):
-                    next_text = elements[i + 1].strip()
-                    match = re.search(r'(\d+(\.\d+)?)%', next_text)
-                    if match:
-                        data["gain"] = float(match.group(1))
-
-            # Drawdown
-            elif text == "Drawdown" and data["dd"] is None:
-                if i + 1 < len(elements):
-                    next_text = elements[i + 1].strip()
-                    match = re.search(r'(\d+(\.\d+)?)%', next_text)
-                    if match:
-                        data["dd"] = float(match.group(1))
-
-            # Price
-            elif text == "Price" and data["price"] is None:
-                if i + 1 < len(elements):
-                    next_text = elements[i + 1].strip()
-                    match = re.search(r'(\d+(\.\d+)?)', next_text)
-                    if match:
-                        data["price"] = float(match.group(1))
-
-        if None in data.values():
+        if None in [rank, gain, dd, price]:
             return None
 
-        if data["dd"] == 0:
-            data["dd"] = 0.1
+        if dd == 0:
+            dd = 0.1
 
-        return data
+        return {
+            "rank": rank,
+            "gain": gain,
+            "dd": dd,
+            "price": price
+        }
 
     except:
         return None
