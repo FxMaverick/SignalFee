@@ -115,11 +115,11 @@ def calculate_price(top_signals, my_signal):
     rank = my_signal["rank"]
 
     if rank <= 20:
-        cap = 50
+        cap = 60
     elif rank <= 30:
-        cap = 40
+        cap = 50
     elif rank <= 50:
-        cap = 30
+        cap = 40
     else:
         cap = 30
 
