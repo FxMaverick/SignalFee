@@ -90,9 +90,12 @@ def get_my_signal():
 
             # Drawdown
             elif "Drawdown" in text and data["dd"] is None:
-                match = re.search(r'(\d+(\.\d+)?)%', text)
-                if match:
-                    data["dd"] = float(match.group(1))
+                try:
+                    match = re.findall(r'(\d+\.\d+|\d+)%', text)
+                    if match:
+                        data["dd"] = float(match[0])  # coger el primero
+                except:
+                    pass
 
             # Price
             elif "Price" in text and data["price"] is None:
