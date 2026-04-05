@@ -3,38 +3,25 @@ from bs4 import BeautifulSoup
 
 URL = "https://www.signalstart.com/search-signals"
 
-def get_page():
-    proxy_url = f"https://api.allorigins.win/raw?url={URL}"
-    res = requests.get(proxy_url)
-    return res.text
-
-def get_my_signal():
-    html = get_page()
-    soup = BeautifulSoup(html, "html.parser")
+def get_top_signals():
+    headers = {"User-Agent": "Mozilla/5.0"}
+    res = requests.get(URL, headers=headers)
+    soup = BeautifulSoup(res.text, "html.parser")
 
     rows = soup.select("table tbody tr")
 
-    print(f"Filas encontradas: {len(rows)}")
+    signals = []
 
     for row in rows:
         cols = row.find_all("td")
-
         if len(cols) < 10:
             continue
 
-        name = cols[1].text.strip()
+        signals.append({
+            "rank": int(cols[0].text.strip()),
+            "gain": float(cols[2].text.replace('%','')),
+            "dd": float(cols[4].text.replace('%','')),
+            "price": float(cols[8].text.replace('$',''))
+        })
 
-        if "Daily Gold Returns" in name:
-            return {
-                "rank": cols[0].text.strip(),
-                "gain": cols[2].text.strip(),
-                "dd": cols[4].text.strip(),
-                "trades": cols[5].text.strip(),
-                "price": cols[8].text.strip()
-            }
-
-    return None
-
-
-if __name__ == "__main__":
-    print(get_my_signal())
+    return signals
