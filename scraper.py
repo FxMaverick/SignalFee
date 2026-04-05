@@ -1,33 +1,26 @@
 import requests
 
-URL = "https://www.signalstart.com/search-signals-json"
+URL = "https://www.signalstart.com/search-signals"
 
 def get_signals():
-    params = {
+    headers = {
+        "User-Agent": "Mozilla/5.0",
+        "X-Requested-With": "XMLHttpRequest"
+    }
+
+    payload = {
+        "draw": 1,
+        "start": 0,
         "length": 100
     }
 
-    response = requests.get(URL, params=params)
-    data = response.json()
+    response = requests.post(URL, data=payload, headers=headers)
 
-    return data["data"]
+    print("Status:", response.status_code)
+    print("Raw response (first 200 chars):", response.text[:200])
 
-
-def get_my_signal():
-    signals = get_signals()
-
-    for s in signals:
-        if "Daily Gold Returns" in s["name"]:
-            return {
-                "rank": s["rank"],
-                "gain": s["gain"],
-                "dd": s["drawdown"],
-                "trades": s["trades"],
-                "price": s["price"]
-            }
-
-    return None
+    return response.text
 
 
 if __name__ == "__main__":
-    print(get_my_signal())
+    get_signals()
