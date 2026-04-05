@@ -1,26 +1,37 @@
 import requests
+from bs4 import BeautifulSoup
 
 URL = "https://www.signalstart.com/search-signals"
 
-def get_signals():
+def get_my_signal():
     headers = {
-        "User-Agent": "Mozilla/5.0",
-        "X-Requested-With": "XMLHttpRequest"
+        "User-Agent": "Mozilla/5.0"
     }
 
-    payload = {
-        "draw": 1,
-        "start": 0,
-        "length": 100
-    }
+    response = requests.get(URL, headers=headers)
+    soup = BeautifulSoup(response.text, "html.parser")
 
-    response = requests.post(URL, data=payload, headers=headers)
+    rows = soup.select("table tbody tr")
 
-    print("Status:", response.status_code)
-    print("Raw response (first 200 chars):", response.text[:200])
+    for row in rows:
+        cols = row.find_all("td")
 
-    return response.text
+        if len(cols) < 10:
+            continue
+
+        name = cols[1].text.strip()
+
+        if "Daily Gold Returns" in name:
+            return {
+                "rank": cols[0].text.strip(),
+                "gain": cols[2].text.strip(),
+                "dd": cols[4].text.strip(),
+                "trades": cols[5].text.strip(),
+                "price": cols[8].text.strip()
+            }
+
+    return None
 
 
 if __name__ == "__main__":
-    get_signals()
+    print(get_my_signal())
