@@ -1,37 +1,42 @@
-import requests
-from bs4 import BeautifulSoup
+from playwright.sync_api import sync_playwright
 
-URL = "https://www.signalstart.com/search-signals"
+SIGNAL_NAME = "Daily Gold Returns"
 
-def get_my_signal():
-    headers = {
-        "User-Agent": "Mozilla/5.0"
-    }
+def get_signal_data():
+    with sync_playwright() as p:
+        browser = p.chromium.launch(headless=True)
+        page = browser.new_page()
 
-    response = requests.get(URL, headers=headers)
-    soup = BeautifulSoup(response.text, "html.parser")
+        page.goto("https://www.signalstart.com/search-signals")
 
-    rows = soup.select("table tbody tr")
+        # seleccionar 100 resultados
+        page.select_option('select[name="signals_length"]', '100')
+        page.wait_for_timeout(5000)
 
-    for row in rows:
-        cols = row.find_all("td")
+        rows = page.query_selector_all("table tbody tr")
 
-        if len(cols) < 10:
-            continue
+        for row in rows:
+            cols = row.query_selector_all("td")
 
-        name = cols[1].text.strip()
+            if len(cols) < 10:
+                continue
 
-        if "Daily Gold Returns" in name:
-            return {
-                "rank": cols[0].text.strip(),
-                "gain": cols[2].text.strip(),
-                "dd": cols[4].text.strip(),
-                "trades": cols[5].text.strip(),
-                "price": cols[8].text.strip()
-            }
+            name = cols[1].inner_text().strip()
 
-    return None
+            if SIGNAL_NAME.lower() in name.lower():
+                data = {
+                    "rank": cols[0].inner_text(),
+                    "gain": cols[2].inner_text(),
+                    "dd": cols[4].inner_text(),
+                    "trades": cols[5].inner_text(),
+                    "price": cols[8].inner_text(),
+                }
+                browser.close()
+                return data
+
+        browser.close()
+        return None
 
 
 if __name__ == "__main__":
-    print(get_my_signal())
+    print(get_signal_data())
