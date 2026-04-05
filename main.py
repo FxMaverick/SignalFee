@@ -1,6 +1,7 @@
 import requests
 from bs4 import BeautifulSoup
 import numpy as np
+import re
 from flask import Flask
 
 app = Flask(__name__)
@@ -75,29 +76,29 @@ def get_my_signal():
         for s in stats:
             text = s.get_text(" ", strip=True)
 
+            # Rank
             if "Rank" in text and data["rank"] is None:
-                try:
-                    data["rank"] = int(''.join(filter(str.isdigit, text)))
-                except:
-                    pass
+                match = re.search(r'\d+', text)
+                if match:
+                    data["rank"] = int(match.group())
 
+            # Gain
             elif "Gain" in text and data["gain"] is None:
-                try:
-                    data["gain"] = float(text.split('%')[0].split()[-1])
-                except:
-                    pass
+                match = re.search(r'(\d+(\.\d+)?)%', text)
+                if match:
+                    data["gain"] = float(match.group(1))
 
+            # Drawdown
             elif "Drawdown" in text and data["dd"] is None:
-                try:
-                    data["dd"] = float(text.split('%')[0].split()[-1])
-                except:
-                    pass
+                match = re.search(r'(\d+(\.\d+)?)%', text)
+                if match:
+                    data["dd"] = float(match.group(1))
 
+            # Price
             elif "Price" in text and data["price"] is None:
-                try:
-                    data["price"] = float(text.replace('$', '').split()[-1])
-                except:
-                    pass
+                match = re.search(r'\$?(\d+(\.\d+)?)', text)
+                if match:
+                    data["price"] = float(match.group(1))
 
         if None in data.values():
             return None
@@ -116,35 +117,41 @@ def get_my_signal():
 # =========================
 def calculate_price(top_signals, my_signal):
 
+    # Remove self from benchmark
     filtered = [
         s for s in top_signals
         if SIGNAL_NAME.lower() not in s["name"].lower()
     ][:20]
 
+    # Market baseline
     prices = [s["price"] for s in filtered]
     price_base = np.median(prices)
 
+    # Quality calculations
     quality_top = np.median([s["gain"] / s["dd"] for s in filtered])
     quality_me = my_signal["gain"] / my_signal["dd"]
 
-    factor = (quality_me / quality_top) ** 0.5
+    # Relative quality (centered at 1)
+    quality_rel = quality_me / quality_top
+
+    # Pricing factor (smoothed)
+    factor = quality_rel ** 0.5
     estimated_price = price_base * factor
 
+    # Rank-based cap
     rank = my_signal["rank"]
-
-    if rank <= 20:
-        cap = 60
-    elif rank <= 30:
-        cap = 50
-    elif rank <= 50:
-        cap = 40
-    else:
-        cap = 30
+    
+    def cap_por_rank(rank):
+        if rank > 50:
+            return 30
+        return 30 + (50 - rank)
+    
+    cap = cap_por_rank(rank)
 
     final_price = min(estimated_price, cap)
     final_price = max(30, round(final_price / 5) * 5)
 
-    return final_price
+    return final_price, quality_rel
 
 
 # =========================
@@ -159,7 +166,7 @@ def home():
     if not my_signal:
         return "<h2>Error: Signal data not found</h2>"
 
-    price = calculate_price(top_signals, my_signal)
+    price, quality_rel = calculate_price(top_signals, my_signal)
 
     return f"""
     <html>
@@ -170,7 +177,7 @@ def home():
             <h1>Fair Signal Price</h1>
             <h2>${price}</h2>
             <p>Rank: {my_signal['rank']}</p>
-            <p>Quality: {round(my_signal['gain']/my_signal['dd'], 2)}</p>
+            <p>Quality (vs market): {round(quality_rel, 2)}</p>
         </body>
     </html>
     """
