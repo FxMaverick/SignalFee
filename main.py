@@ -57,66 +57,59 @@ def get_top_signals():
 
 
 # =========================
-# MODULE 2: FETCH TARGET SIGNAL DATA
+# MODULE 2: FETCH TARGET SIGNAL DATA (ROBUST PARSING)
 # =========================
 def get_my_signal():
     res = requests.get(MY_SIGNAL_URL, headers=HEADERS)
     soup = BeautifulSoup(res.text, "html.parser")
 
+    text = soup.get_text(" ", strip=True)
+
     try:
-        stats = soup.find_all("div")
+        # Rank
+        rank_match = re.search(r'Rank\s*#?(\d+)', text)
+        rank = int(rank_match.group(1)) if rank_match else None
 
-        data = {
-            "rank": None,
-            "gain": None,
-            "dd": None,
-            "price": None
-        }
+        # Gain
+        gain_match = re.search(r'Gain\s*([\d\.]+)%', text)
+        gain = float(gain_match.group(1)) if gain_match else None
 
-        for s in stats:
-            text = s.get_text(" ", strip=True)
+        # Drawdown
+        dd_match = re.search(r'Drawdown\s*([\d\.]+)%', text)
+        dd = float(dd_match.group(1)) if dd_match else None
 
-            # Rank
-            if "Rank" in text and data["rank"] is None:
-                match = re.search(r'\d+', text)
-                if match:
-                    data["rank"] = int(match.group())
+        # Price
+        price_match = re.search(r'\$([\d\.]+)', text)
+        price = float(price_match.group(1)) if price_match else None
 
-            # Gain
-            elif "Gain" in text and data["gain"] is None:
-                match = re.search(r'(\d+(\.\d+)?)%', text)
-                if match:
-                    data["gain"] = float(match.group(1))
-
-            # Drawdown
-            elif "Drawdown" in text and data["dd"] is None:
-                try:
-                    match = re.findall(r'(\d+\.\d+|\d+)%', text)
-                    if match:
-                        data["dd"] = float(match[0])  # coger el primero
-                except:
-                    pass
-
-            # Price
-            elif "Price" in text and data["price"] is None:
-                match = re.search(r'\$?(\d+(\.\d+)?)', text)
-                if match:
-                    data["price"] = float(match.group(1))
-
-        if None in data.values():
+        if None in [rank, gain, dd, price]:
             return None
 
-        if data["dd"] == 0:
-            data["dd"] = 0.1
+        if dd == 0:
+            dd = 0.1
 
-        return data
+        return {
+            "rank": rank,
+            "gain": gain,
+            "dd": dd,
+            "price": price
+        }
 
     except:
         return None
 
 
 # =========================
-# MODULE 3: PRICING ENGINE
+# MODULE 3: CONTINUOUS RANK CAP
+# =========================
+def cap_por_rank(rank):
+    if rank > 50:
+        return 30
+    return 30 + (50 - rank)
+
+
+# =========================
+# MODULE 4: PRICING ENGINE
 # =========================
 def calculate_price(top_signals, my_signal):
 
@@ -130,26 +123,19 @@ def calculate_price(top_signals, my_signal):
     prices = [s["price"] for s in filtered]
     price_base = np.median(prices)
 
-    # Quality calculations
+    # Quality
     quality_top = np.median([s["gain"] / s["dd"] for s in filtered])
     quality_me = my_signal["gain"] / my_signal["dd"]
 
-    # Relative quality (centered at 1)
+    # Relative quality
     quality_rel = quality_me / quality_top
 
-    # Pricing factor (smoothed)
+    # Smooth adjustment
     factor = quality_rel ** 0.5
     estimated_price = price_base * factor
 
-    # Rank-based cap
-    rank = my_signal["rank"]
-    
-    def cap_por_rank(rank):
-        if rank > 50:
-            return 30
-        return 30 + (50 - rank)
-    
-    cap = cap_por_rank(rank)
+    # Cap
+    cap = cap_por_rank(my_signal["rank"])
 
     final_price = min(estimated_price, cap)
     final_price = max(30, round(final_price / 5) * 5)
@@ -173,15 +159,13 @@ def home():
 
     return f"""
     <html>
-        <head>
-            <title>Signal Pricing</title>
-        </head>
-        <body style="font-family: Arial; text-align: center; margin-top: 50px;">
-            <h1>Fair Signal Price</h1>
-            <h2>${price}</h2>
-            <p>Rank: {my_signal['rank']}</p>
-            <p>Quality: {round(quality_rel, 2)}</p>
-        </body>
+    <body>
+        <h2>DEBUG</h2>
+        <p>Gain: {my_signal['gain']}</p>
+        <p>DD: {my_signal['dd']}</p>
+        <p>Quality raw: {round(my_signal['gain']/my_signal['dd'],2)}</p>
+        <p>Quality vs market: {round(quality_rel,2)}</p>
+    </body>
     </html>
     """
 
