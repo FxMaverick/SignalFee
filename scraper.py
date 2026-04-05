@@ -1,54 +1,43 @@
-from selenium import webdriver
-from selenium.webdriver.common.by import By
-from selenium.webdriver.chrome.options import Options
+from playwright.sync_api import sync_playwright
 import time
 
 SIGNAL_NAME = "Daily Gold Returns"
 
 def get_signal_data():
+    with sync_playwright() as p:
+        browser = p.chromium.launch(headless=True)
+        page = browser.new_page()
 
-    options = Options()
-    options.add_argument("--headless")
+        page.goto("https://www.signalstart.com/search-signals")
 
-    driver = webdriver.Chrome(options=options)
-    driver.get("https://www.signalstart.com/search-signals")
+        time.sleep(5)
 
-    time.sleep(5)
+        rows = page.query_selector_all("table tbody tr")
 
-    rows = driver.find_elements(By.CSS_SELECTOR, "table tbody tr")
+        for row in rows:
+            cols = row.query_selector_all("td")
 
-    for row in rows:
-        cols = row.find_elements(By.TAG_NAME, "td")
+            if len(cols) < 10:
+                continue
 
-        if len(cols) < 10:
-            continue
+            name = cols[1].inner_text().strip()
 
-        name = cols[1].text.strip()
+            if SIGNAL_NAME.lower() in name.lower():
 
-        if SIGNAL_NAME.lower() in name.lower():
+                data = {
+                    "rank": cols[0].inner_text().strip(),
+                    "gain": cols[2].inner_text().strip(),
+                    "dd": cols[4].inner_text().strip(),
+                    "trades": cols[5].inner_text().strip(),
+                    "age": cols[9].inner_text().strip(),
+                }
 
-            data = {
-                "rank": cols[0].text.strip(),
-                "name": name,
-                "gain": cols[2].text.strip(),
-                "dd": cols[4].text.strip(),
-                "trades": cols[5].text.strip(),
-                "age": cols[9].text.strip(),
-            }
+                browser.close()
+                return data
 
-            driver.quit()
-            return data
-
-    driver.quit()
-    return None
+        browser.close()
+        return None
 
 
 if __name__ == "__main__":
-    data = get_signal_data()
-
-    if data:
-        print("✅ Señal encontrada:")
-        for k, v in data.items():
-            print(f"{k}: {v}")
-    else:
-        print("❌ No encontrada")
+    print(get_signal_data())
