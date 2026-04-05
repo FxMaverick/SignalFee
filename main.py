@@ -59,30 +59,52 @@ def get_my_signal():
     res = requests.get(MY_SIGNAL_URL, headers=HEADERS)
     soup = BeautifulSoup(res.text, "html.parser")
 
-    text = soup.get_text(" ", strip=True)
+    try:
+        # Buscar todos los bloques tipo "stat"
+        stats = soup.find_all("div")
 
-    def extract_after(label):
-        try:
-            idx = text.index(label)
-            return text[idx:].split()[1]
-        except:
+        data = {
+            "rank": None,
+            "gain": None,
+            "dd": None,
+            "price": None
+        }
+
+        for s in stats:
+            text = s.get_text(" ", strip=True)
+
+            if "Rank" in text and data["rank"] is None:
+                try:
+                    data["rank"] = int(''.join(filter(str.isdigit, text)))
+                except:
+                    pass
+
+            elif "Gain" in text and data["gain"] is None:
+                try:
+                    data["gain"] = float(text.split('%')[0].split()[-1])
+                except:
+                    pass
+
+            elif "Drawdown" in text and data["dd"] is None:
+                try:
+                    data["dd"] = float(text.split('%')[0].split()[-1])
+                except:
+                    pass
+
+            elif "Price" in text and data["price"] is None:
+                try:
+                    data["price"] = float(text.replace('$', '').split()[-1])
+                except:
+                    pass
+
+        # Validación mínima
+        if None in data.values():
             return None
 
-    try:
-        rank = int(extract_after("Rank").replace("#", ""))
-        gain = float(extract_after("Gain").replace('%', ''))
-        dd = float(extract_after("Drawdown").replace('%', ''))
-        price = float(extract_after("Price").replace('$', ''))
+        if data["dd"] == 0:
+            data["dd"] = 0.1
 
-        if dd == 0:
-            dd = 0.1
-
-        return {
-            "rank": rank,
-            "gain": gain,
-            "dd": dd,
-            "price": price
-        }
+        return data
 
     except:
         return None
