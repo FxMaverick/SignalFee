@@ -1,6 +1,9 @@
 import requests
 from bs4 import BeautifulSoup
 import numpy as np
+from flask import Flask
+
+app = Flask(__name__)
 
 # =========================
 # CONFIGURATION
@@ -60,7 +63,6 @@ def get_my_signal():
     soup = BeautifulSoup(res.text, "html.parser")
 
     try:
-        # Buscar todos los bloques tipo "stat"
         stats = soup.find_all("div")
 
         data = {
@@ -97,7 +99,6 @@ def get_my_signal():
                 except:
                     pass
 
-        # Validación mínima
         if None in data.values():
             return None
 
@@ -115,25 +116,20 @@ def get_my_signal():
 # =========================
 def calculate_price(top_signals, my_signal):
 
-    # Remove self from benchmark if present
     filtered = [
         s for s in top_signals
         if SIGNAL_NAME.lower() not in s["name"].lower()
     ][:20]
 
-    # Market baseline (median price)
     prices = [s["price"] for s in filtered]
     price_base = np.median(prices)
 
-    # Quality comparison
     quality_top = np.median([s["gain"] / s["dd"] for s in filtered])
     quality_me = my_signal["gain"] / my_signal["dd"]
 
-    # Continuous adjustment factor
     factor = (quality_me / quality_top) ** 0.5
     estimated_price = price_base * factor
 
-    # Visibility cap (rank-based)
     rank = my_signal["rank"]
 
     if rank <= 20:
@@ -146,25 +142,42 @@ def calculate_price(top_signals, my_signal):
         cap = 30
 
     final_price = min(estimated_price, cap)
-
-    # Normalize
     final_price = max(30, round(final_price / 5) * 5)
 
     return final_price
 
 
 # =========================
-# MAIN EXECUTION
+# WEB OUTPUT
 # =========================
-if __name__ == "__main__":
+@app.route("/")
+def home():
 
     top_signals = get_top_signals()
     my_signal = get_my_signal()
 
     if not my_signal:
-        print("Error: Signal data not found")
-        exit()
+        return "<h2>Error: Signal data not found</h2>"
 
     price = calculate_price(top_signals, my_signal)
 
-    print(f"Fair Signal Price: ${price}")
+    return f"""
+    <html>
+        <head>
+            <title>Signal Pricing</title>
+        </head>
+        <body style="font-family: Arial; text-align: center; margin-top: 50px;">
+            <h1>Fair Signal Price</h1>
+            <h2>${price}</h2>
+            <p>Rank: {my_signal['rank']}</p>
+            <p>Quality: {round(my_signal['gain']/my_signal['dd'], 2)}</p>
+        </body>
+    </html>
+    """
+
+
+# =========================
+# RUN SERVER
+# =========================
+if __name__ == "__main__":
+    app.run(host="0.0.0.0", port=10000)
