@@ -1,43 +1,33 @@
-from playwright.sync_api import sync_playwright
-import time
+import requests
 
-SIGNAL_NAME = "Daily Gold Returns"
+URL = "https://www.signalstart.com/search-signals-json"
 
-def get_signal_data():
-    with sync_playwright() as p:
-        browser = p.chromium.launch(headless=True)
-        page = browser.new_page()
+def get_signals():
+    params = {
+        "length": 100
+    }
 
-        page.goto("https://www.signalstart.com/search-signals")
+    response = requests.get(URL, params=params)
+    data = response.json()
 
-        time.sleep(5)
+    return data["data"]
 
-        rows = page.query_selector_all("table tbody tr")
 
-        for row in rows:
-            cols = row.query_selector_all("td")
+def get_my_signal():
+    signals = get_signals()
 
-            if len(cols) < 10:
-                continue
+    for s in signals:
+        if "Daily Gold Returns" in s["name"]:
+            return {
+                "rank": s["rank"],
+                "gain": s["gain"],
+                "dd": s["drawdown"],
+                "trades": s["trades"],
+                "price": s["price"]
+            }
 
-            name = cols[1].inner_text().strip()
-
-            if SIGNAL_NAME.lower() in name.lower():
-
-                data = {
-                    "rank": cols[0].inner_text().strip(),
-                    "gain": cols[2].inner_text().strip(),
-                    "dd": cols[4].inner_text().strip(),
-                    "trades": cols[5].inner_text().strip(),
-                    "age": cols[9].inner_text().strip(),
-                }
-
-                browser.close()
-                return data
-
-        browser.close()
-        return None
+    return None
 
 
 if __name__ == "__main__":
-    print(get_signal_data())
+    print(get_my_signal())
