@@ -1,42 +1,40 @@
-from playwright.sync_api import sync_playwright
+import requests
+from bs4 import BeautifulSoup
 
-SIGNAL_NAME = "Daily Gold Returns"
+URL = "https://www.signalstart.com/search-signals"
 
-def get_signal_data():
-    with sync_playwright() as p:
-        browser = p.chromium.launch(headless=True)
-        page = browser.new_page()
+def get_page():
+    proxy_url = f"https://api.allorigins.win/raw?url={URL}"
+    res = requests.get(proxy_url)
+    return res.text
 
-        page.goto("https://www.signalstart.com/search-signals")
+def get_my_signal():
+    html = get_page()
+    soup = BeautifulSoup(html, "html.parser")
 
-        # seleccionar 100 resultados
-        page.select_option('select[name="signals_length"]', '100')
-        page.wait_for_timeout(5000)
+    rows = soup.select("table tbody tr")
 
-        rows = page.query_selector_all("table tbody tr")
+    print(f"Filas encontradas: {len(rows)}")
 
-        for row in rows:
-            cols = row.query_selector_all("td")
+    for row in rows:
+        cols = row.find_all("td")
 
-            if len(cols) < 10:
-                continue
+        if len(cols) < 10:
+            continue
 
-            name = cols[1].inner_text().strip()
+        name = cols[1].text.strip()
 
-            if SIGNAL_NAME.lower() in name.lower():
-                data = {
-                    "rank": cols[0].inner_text(),
-                    "gain": cols[2].inner_text(),
-                    "dd": cols[4].inner_text(),
-                    "trades": cols[5].inner_text(),
-                    "price": cols[8].inner_text(),
-                }
-                browser.close()
-                return data
+        if "Daily Gold Returns" in name:
+            return {
+                "rank": cols[0].text.strip(),
+                "gain": cols[2].text.strip(),
+                "dd": cols[4].text.strip(),
+                "trades": cols[5].text.strip(),
+                "price": cols[8].text.strip()
+            }
 
-        browser.close()
-        return None
+    return None
 
 
 if __name__ == "__main__":
-    print(get_signal_data())
+    print(get_my_signal())
