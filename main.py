@@ -180,7 +180,7 @@ def home():
             <h1>Fair Signal Price</h1>
             <h2>${price}</h2>
             <p>Rank: {my_signal['rank']}</p>
-            <p>Quality (vs market): {round(quality_rel, 2)}</p>
+            <p>Quality: {round(quality_rel, 2)}</p>
         </body>
     </html>
     """
